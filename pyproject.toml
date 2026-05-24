@@ -1,0 +1,26 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade (modern Python syntax)
+    "B",   # flake8-bugbear (common bugs)
+    "C4",  # flake8-comprehensions (cleaner list/dict comprehensions)
+    "N",   # pep8 naming conventions
+]
+ignore = [
+    "E501",  # line too long – handled by formatter
+    "B008",  # do not perform function calls in default arguments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802", "N803"]  # allow non-lowercase names in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

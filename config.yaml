@@ -1,0 +1,44 @@
+model:
+  weights: runs/football/weights/best.pt
+  conf_threshold: 0.3
+  iou_threshold: 0.5
+  tracker: bytetrack           # bytetrack | botsort
+  device: ""                   # "" = auto (cuda → mps → cpu)
+
+  # Fine-tuned class IDs: 0=ball  1=goalkeeper  2=player  3=referee
+  ball_class_id: 0
+  player_class_ids: [1, 2]     # goalkeeper + player
+  referee_class_id: 3
+  track_referee: false         # set true to draw referee overlay
+
+camera:
+  use_stabilization: true
+  max_corners: 100             # Shi-Tomasi corners tracked per frame
+  quality_level: 0.3
+  min_distance: 3.0
+  block_size: 7
+
+field:
+  # Pixel coordinates of the four visible field corners in the source video.
+  # Order: top-left, top-right, bottom-right, bottom-left.
+  # Set to null to skip homography (speed/distance will use a linear fallback).
+  corners: null
+  real_width_m: 68.0           # standard football pitch width
+  real_length_m: 105.0         # standard football pitch length
+  minimap_scale: 0.22          # minimap width as fraction of frame width
+
+team:
+  kmeans_clusters: 2
+  color_space: LAB             # LAB | HSV  (LAB is more perceptually uniform)
+
+metrics:
+  speed_smoothing_window: 5    # rolling-average window in frames
+  distance_smoothing_window: 3
+
+fit_frames: 30                 # frames collected before fitting the team classifier
+
+output:
+  show_minimap: true
+  show_speed: true
+  show_distance: true
+  video_codec: avc1
