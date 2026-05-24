@@ -165,20 +165,6 @@ field:
 
 ---
 
-## Design Compared to Reference Implementation
-
-| Area | Reference | This project |
-|------|-----------|--------------|
-| Color space | RGB KMeans | CIELAB KMeans (perceptually uniform) |
-| Tracking | Custom SORT wrapper | ByteTrack via YOLO (fewer ID switches) |
-| Visualization | Manual cv2 drawing | supervision library (composable annotators) |
-| Configuration | Hardcoded constants | Single `config.yaml` |
-| Camera movement | Lucas-Kanade on full frame | Background-strip-only optical flow |
-| Code structure | Script-oriented | Module per concern, dataclass configs |
-| Fine-tuning | Not included | Colab notebook + `train.py` |
-
----
-
 ## GDPR Notice
 
 Video footage of football matches may contain images of identifiable
