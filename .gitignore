@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Model weights (large binary files)
+*.pt
+*.pth
+*.onnx
+*.engine
+weights/
+
+# Video files (may contain personal data – see GDPR notice in README)
+assets/videos/*.mp4
+assets/videos/*.avi
+assets/videos/*.mov
+assets/videos/*.mkv
+!assets/videos/.gitkeep
+
+# Output videos
+output/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+logs/
+
+# ByteTrack / BoT-SORT tracker config cache
+runs/
