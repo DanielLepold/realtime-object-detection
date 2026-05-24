@@ -87,7 +87,6 @@ class TeamClassifier:
 
     @property
     def team_colors_bgr(self) -> list[tuple[int, int, int]] | None:
-        """Cluster centers converted back to BGR for visualization."""
         if self._kmeans is None:
             return None
         result = []

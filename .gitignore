@@ -44,10 +44,16 @@ output/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+!notebooks/*.ipynb
 
 # Logs
 *.log
 logs/
 
-# ByteTrack / BoT-SORT tracker config cache
+# Training runs (weights, metrics) – large binary files
 runs/
+
+# Dataset files – never commit raw footage or annotations (GDPR + size)
+datasets/*/
+datasets/*.zip
+!datasets/.gitkeep

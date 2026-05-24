@@ -71,7 +71,8 @@ class CameraStabilizer:
                 good_new = new_pts[status.ravel() == 1]
                 good_old = self._prev_points[status.ravel() == 1]
                 if len(good_new) >= 5:
-                    self.cumulative += (good_new - good_old).mean(axis=0)
+                    delta = (good_new.reshape(-1, 2) - good_old.reshape(-1, 2)).mean(axis=0)
+                    self.cumulative += delta
 
         self._prev_gray = gray
         self._prev_points = self._detect_corners(gray, frame.shape)

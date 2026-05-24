@@ -1,11 +1,15 @@
 model:
-  weights: yolov8x.pt         # n / s / m / l / x – larger = slower but more accurate
+  weights: runs/football/weights/best.pt
   conf_threshold: 0.3
   iou_threshold: 0.5
   tracker: bytetrack           # bytetrack | botsort
   device: ""                   # "" = auto (cuda → mps → cpu)
-  person_class_id: 0           # COCO class id for "person"
-  ball_class_id: 32            # COCO class id for "sports ball"
+
+  # Fine-tuned class IDs: 0=ball  1=goalkeeper  2=player  3=referee
+  ball_class_id: 0
+  player_class_ids: [1, 2]     # goalkeeper + player
+  referee_class_id: 3
+  track_referee: false         # set true to draw referee overlay
 
 camera:
   use_stabilization: true
@@ -37,4 +41,4 @@ output:
   show_minimap: true
   show_speed: true
   show_distance: true
-  video_codec: mp4v
+  video_codec: avc1

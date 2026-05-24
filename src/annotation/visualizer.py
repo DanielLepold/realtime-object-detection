@@ -66,6 +66,7 @@ class FrameAnnotator:
         frame: np.ndarray,
         players: sv.Detections,
         ball: sv.Detections,
+        referees: sv.Detections,
         team_ids: dict[int, int],
         metrics: dict[int, tuple[float, float]],
     ) -> np.ndarray:
@@ -89,6 +90,14 @@ class FrameAnnotator:
                     color=palette,
                     color_lookup=sv.ColorLookup.INDEX,
                 ).annotate(out, players, labels=labels)
+
+        if len(referees) > 0:
+            referee_palette = sv.ColorPalette(
+                colors=[_TEAM_COLORS[2]] * len(referees)
+            )
+            out = sv.EllipseAnnotator(
+                color=referee_palette, color_lookup=sv.ColorLookup.INDEX
+            ).annotate(out, referees)
 
         if len(ball) > 0:
             out = self._triangle.annotate(out, ball)

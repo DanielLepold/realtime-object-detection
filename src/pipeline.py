@@ -12,7 +12,7 @@ from src.camera.stabilizer import CameraStabilizer, StabilizerConfig
 from src.field.perspective import FieldConfig, PerspectiveTransformer
 from src.metrics.speed_distance import MetricsConfig, SpeedDistanceTracker
 from src.team.classifier import TeamClassifier, TeamClassifierConfig
-from src.tracking.tracker import PlayerTracker, TrackerConfig
+from src.tracking.tracker import PlayerTracker, TrackerConfig, TrackingResult
 
 
 @dataclass
@@ -124,27 +124,30 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _process_frame(self, frame: np.ndarray) -> np.ndarray:
-        players, ball = self._tracker.track(frame)
+        result: TrackingResult = self._tracker.track(frame)
         camera_offset = self._stabilizer.update(frame)
 
-        self._maybe_fit_team_classifier(frame, players)
-        self._update_team_ids(frame, players)
+        self._maybe_fit_team_classifier(frame, result.players)
+        self._update_team_ids(frame, result.players)
 
         metrics: dict[int, tuple[float, float]] = {}
-        if len(players) > 0 and players.tracker_id is not None:
+        if len(result.players) > 0 and result.players.tracker_id is not None:
             bottom_centers = np.stack([
-                (players.xyxy[:, 0] + players.xyxy[:, 2]) / 2.0,
-                players.xyxy[:, 3],
+                (result.players.xyxy[:, 0] + result.players.xyxy[:, 2]) / 2.0,
+                result.players.xyxy[:, 3],
             ], axis=1)
             metrics = self._speed_tracker.update(
-                players.tracker_id, bottom_centers, camera_offset
+                result.players.tracker_id, bottom_centers, camera_offset
             )
 
-        annotated = self._annotator.annotate(frame, players, ball, self._team_ids, metrics)
+        annotated = self._annotator.annotate(
+            frame, result.players, result.ball, result.referees,
+            self._team_ids, metrics,
+        )
 
         if self._config.visualizer.show_minimap and self._transformer is not None:
             annotated = self._annotator.draw_minimap(
-                annotated, players, ball,
+                annotated, result.players, result.ball,
                 self._team_ids, self._transformer, camera_offset,
             )
 
