@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from src.team.classifier import TeamClassifier, TeamClassifierConfig
 
@@ -24,8 +23,8 @@ class TestTeamClassifier:
     def test_fit_two_distinct_colors(self):
         clf = TeamClassifier(TeamClassifierConfig(color_space="LAB"))
 
-        red_frame = _make_frame((0, 0, 200))    # BGR red
-        blue_frame = _make_frame((200, 0, 0))   # BGR blue
+        red_frame = _make_frame((0, 0, 200))  # BGR red
+        blue_frame = _make_frame((200, 0, 0))  # BGR blue
         box = _box()
 
         frames = [red_frame] * 20 + [blue_frame] * 20

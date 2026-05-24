@@ -25,6 +25,7 @@ Usage
     # Resume interrupted training
     python train.py --dataset /path/to/... --resume
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,7 +48,7 @@ def _parse_args() -> argparse.Namespace:
         "--dataset",
         required=True,
         help="Absolute path to the downloaded dataset root "
-             "(the folder containing data.yaml, train/, valid/, test/)",
+        "(the folder containing data.yaml, train/, valid/, test/)",
     )
     parser.add_argument(
         "--base",
@@ -55,31 +56,41 @@ def _parse_args() -> argparse.Namespace:
         help="Starting weights: yolov8n/s/m/l/x.pt  (default: yolov8x.pt)",
     )
     parser.add_argument(
-        "--epochs", type=int, default=100,
+        "--epochs",
+        type=int,
+        default=100,
         help="Training epochs (default: 100)",
     )
     parser.add_argument(
-        "--imgsz", type=int, default=640,
+        "--imgsz",
+        type=int,
+        default=640,
         help="Input image size (default: 640)",
     )
     parser.add_argument(
-        "--batch", type=int, default=16,
+        "--batch",
+        type=int,
+        default=16,
         help="Batch size; use -1 for auto-batch (default: 16)",
     )
     parser.add_argument(
-        "--device", default="",
+        "--device",
+        default="",
         help='Device: "" (auto), "cuda", "mps", "cpu" (default: "")',
     )
     parser.add_argument(
-        "--project", default="runs",
+        "--project",
+        default="runs",
         help="Output directory for training runs (default: runs)",
     )
     parser.add_argument(
-        "--name", default="football",
+        "--name",
+        default="football",
         help="Run name – weights saved to <project>/<name>/weights/ (default: football)",
     )
     parser.add_argument(
-        "--resume", action="store_true",
+        "--resume",
+        action="store_true",
         help="Resume the last interrupted training run",
     )
     return parser.parse_args()
@@ -127,7 +138,7 @@ def main() -> None:
 
     model = YOLO(args.base)
 
-    results = model.train(
+    _results = model.train(
         data=data_yaml,
         epochs=args.epochs,
         imgsz=args.imgsz,

@@ -86,7 +86,7 @@ class SpeedDistanceTracker:
         """
         results: dict[int, tuple[float, float]] = {}
 
-        for tid, px_pos in zip(tracker_ids, pixel_positions):
+        for tid, px_pos in zip(tracker_ids, pixel_positions, strict=False):
             corrected = px_pos - camera_offset
             pos_m = self._transformer.pixel_to_meters(corrected)
 

@@ -108,16 +108,13 @@ class AnalysisPipeline:
             if frame_idx % 50 == 0:
                 elapsed = time.perf_counter() - t0
                 logger.info(
-                    f"  {frame_idx}/{total} frames  |  "
-                    f"{frame_idx / elapsed:.1f} fps processing"
+                    f"  {frame_idx}/{total} frames  |  {frame_idx / elapsed:.1f} fps processing"
                 )
 
         cap.release()
         writer.release()
         elapsed = time.perf_counter() - t0
-        logger.success(
-            f"Finished {frame_idx} frames in {elapsed:.1f}s  →  {output_path}"
-        )
+        logger.success(f"Finished {frame_idx} frames in {elapsed:.1f}s  →  {output_path}")
 
     # ------------------------------------------------------------------
     # Internal
@@ -132,23 +129,34 @@ class AnalysisPipeline:
 
         metrics: dict[int, tuple[float, float]] = {}
         if len(result.players) > 0 and result.players.tracker_id is not None:
-            bottom_centers = np.stack([
-                (result.players.xyxy[:, 0] + result.players.xyxy[:, 2]) / 2.0,
-                result.players.xyxy[:, 3],
-            ], axis=1)
+            bottom_centers = np.stack(
+                [
+                    (result.players.xyxy[:, 0] + result.players.xyxy[:, 2]) / 2.0,
+                    result.players.xyxy[:, 3],
+                ],
+                axis=1,
+            )
             metrics = self._speed_tracker.update(
                 result.players.tracker_id, bottom_centers, camera_offset
             )
 
         annotated = self._annotator.annotate(
-            frame, result.players, result.ball, result.referees,
-            self._team_ids, metrics,
+            frame,
+            result.players,
+            result.ball,
+            result.referees,
+            self._team_ids,
+            metrics,
         )
 
         if self._config.visualizer.show_minimap and self._transformer is not None:
             annotated = self._annotator.draw_minimap(
-                annotated, result.players, result.ball,
-                self._team_ids, self._transformer, camera_offset,
+                annotated,
+                result.players,
+                result.ball,
+                self._team_ids,
+                self._transformer,
+                camera_offset,
             )
 
         return annotated
@@ -160,7 +168,7 @@ class AnalysisPipeline:
             self._fit_buffer.append((frame.copy(), players.xyxy.copy()))
         if len(self._fit_buffer) >= self._config.fit_frames:
             logger.info("Fitting team classifier…")
-            frames, boxes = zip(*self._fit_buffer)
+            frames, boxes = zip(*self._fit_buffer, strict=False)
             self._team_clf.fit(list(frames), list(boxes))
             self._fit_buffer.clear()
             logger.info("Team classifier ready.")
@@ -168,7 +176,7 @@ class AnalysisPipeline:
     def _update_team_ids(self, frame: np.ndarray, players) -> None:
         if not self._team_clf.is_fitted or players.tracker_id is None:
             return
-        for tid, box in zip(players.tracker_id, players.xyxy):
+        for tid, box in zip(players.tracker_id, players.xyxy, strict=False):
             tid_int = int(tid)
             if tid_int not in self._team_ids:
                 self._team_ids[tid_int] = self._team_clf.predict(frame, box)

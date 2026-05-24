@@ -8,6 +8,7 @@ Usage
     python main.py --input assets/videos/sample_match.mp4 --output output/result.mp4
     python main.py --input assets/videos/sample_match.mp4 --config config.yaml
 """
+
 from __future__ import annotations
 
 import argparse

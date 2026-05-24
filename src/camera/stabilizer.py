@@ -42,11 +42,11 @@ class CameraStabilizer:
     measurements are in field-space rather than camera-space.
     """
 
-    _LK_PARAMS = dict(
-        winSize=(15, 15),
-        maxLevel=2,
-        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
-    )
+    _LK_PARAMS = {
+        "winSize": (15, 15),
+        "maxLevel": 2,
+        "criteria": (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
+    }
 
     def __init__(self, config: StabilizerConfig) -> None:
         self.config = config
@@ -63,8 +63,12 @@ class CameraStabilizer:
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        if self._prev_gray is not None and self._prev_points is not None and len(self._prev_points) > 0:
-            new_pts, status, _ = cv2.calcOpticalFlowPyrLK(
+        if (
+            self._prev_gray is not None
+            and self._prev_points is not None
+            and len(self._prev_points) > 0
+        ):
+            new_pts, status, _ = cv2.calcOpticalFlowPyrLK(  # type: ignore[call-overload]
                 self._prev_gray, gray, self._prev_points, None, **self._LK_PARAMS
             )
             if new_pts is not None and status is not None:
@@ -82,8 +86,8 @@ class CameraStabilizer:
         h = shape[0]
         mask = np.zeros(gray.shape, dtype=np.uint8)
         strip = h // 5
-        mask[:strip] = 255        # top strip (stands / sky)
-        mask[4 * strip:] = 255   # bottom strip (stands)
+        mask[:strip] = 255  # top strip (stands / sky)
+        mask[4 * strip :] = 255  # bottom strip (stands)
 
         corners = cv2.goodFeaturesToTrack(
             gray,

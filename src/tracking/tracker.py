@@ -12,11 +12,13 @@ class TrackerConfig:
     weights: str = "yolov8x.pt"
     conf_threshold: float = 0.3
     iou_threshold: float = 0.5
-    tracker: str = "bytetrack"      # bytetrack | botsort
+    tracker: str = "bytetrack"  # bytetrack | botsort
     device: str = ""
-    ball_class_id: int = 32         # COCO: 32  |  fine-tuned: 0
-    player_class_ids: list[int] = field(default_factory=lambda: [0])  # COCO: [0]  |  fine-tuned: [1, 2]
-    referee_class_id: int | None = None   # fine-tuned: 3
+    ball_class_id: int = 32  # COCO: 32  |  fine-tuned: 0
+    player_class_ids: list[int] = field(
+        default_factory=lambda: [0]
+    )  # COCO: [0]  |  fine-tuned: [1, 2]
+    referee_class_id: int | None = None  # fine-tuned: 3
     track_referee: bool = False
 
     @classmethod

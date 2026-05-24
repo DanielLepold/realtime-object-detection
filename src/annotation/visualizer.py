@@ -8,9 +8,9 @@ import supervision as sv
 
 # Default team palette – overridden at runtime by discovered jersey colors.
 _TEAM_COLORS = [
-    sv.Color(r=230, g=57, b=70),    # team 0 – red
-    sv.Color(r=69, g=123, b=157),   # team 1 – blue
-    sv.Color(r=244, g=211, b=94),   # unknown / referee – yellow
+    sv.Color(r=230, g=57, b=70),  # team 0 – red
+    sv.Color(r=69, g=123, b=157),  # team 1 – blue
+    sv.Color(r=244, g=211, b=94),  # unknown / referee – yellow
 ]
 
 
@@ -53,9 +53,7 @@ class FrameAnnotator:
         self._trace = sv.TraceAnnotator(
             thickness=2, trace_length=30, color_lookup=sv.ColorLookup.INDEX
         )
-        self._triangle = sv.TriangleAnnotator(
-            color=sv.Color.WHITE, base=20, height=16
-        )
+        self._triangle = sv.TriangleAnnotator(color=sv.Color.WHITE, base=20, height=16)
 
     # ------------------------------------------------------------------
     # Main annotation
@@ -76,9 +74,9 @@ class FrameAnnotator:
             colors = self._player_colors(players, team_ids)
             palette = sv.ColorPalette(colors=colors)
 
-            out = sv.EllipseAnnotator(
-                color=palette, color_lookup=sv.ColorLookup.INDEX
-            ).annotate(out, players)
+            out = sv.EllipseAnnotator(color=palette, color_lookup=sv.ColorLookup.INDEX).annotate(
+                out, players
+            )
 
             out = self._trace.annotate(out, players)
 
@@ -92,9 +90,7 @@ class FrameAnnotator:
                 ).annotate(out, players, labels=labels)
 
         if len(referees) > 0:
-            referee_palette = sv.ColorPalette(
-                colors=[_TEAM_COLORS[2]] * len(referees)
-            )
+            referee_palette = sv.ColorPalette(colors=[_TEAM_COLORS[2]] * len(referees))
             out = sv.EllipseAnnotator(
                 color=referee_palette, color_lookup=sv.ColorLookup.INDEX
             ).annotate(out, referees)
@@ -125,7 +121,7 @@ class FrameAnnotator:
         self._draw_pitch_lines(minimap)
 
         if len(players) > 0 and players.tracker_id is not None:
-            for tid, xyxy in zip(players.tracker_id, players.xyxy):
+            for tid, xyxy in zip(players.tracker_id, players.xyxy, strict=False):
                 cx = (xyxy[0] + xyxy[2]) / 2.0
                 cy = float(xyxy[3])
                 pos_m = transformer.pixel_to_meters(np.array([cx, cy]) - camera_offset)
@@ -149,9 +145,7 @@ class FrameAnnotator:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _player_colors(
-        self, players: sv.Detections, team_ids: dict[int, int]
-    ) -> list[sv.Color]:
+    def _player_colors(self, players: sv.Detections, team_ids: dict[int, int]) -> list[sv.Color]:
         colors: list[sv.Color] = []
         ids = players.tracker_id if players.tracker_id is not None else [None] * len(players)
         for tid in ids:
@@ -183,5 +177,5 @@ class FrameAnnotator:
         cv2.rectangle(minimap, (0, 0), (w - 1, h - 1), (34, 139, 34), -1)  # green fill
         cv2.rectangle(minimap, (2, 2), (w - 3, h - 3), (255, 255, 255), 1)  # boundary
         mid = h // 2
-        cv2.line(minimap, (0, mid), (w, mid), (255, 255, 255), 1)           # halfway line
-        cv2.circle(minimap, (w // 2, mid), h // 10, (255, 255, 255), 1)     # centre circle
+        cv2.line(minimap, (0, mid), (w, mid), (255, 255, 255), 1)  # halfway line
+        cv2.circle(minimap, (w // 2, mid), h // 10, (255, 255, 255), 1)  # centre circle

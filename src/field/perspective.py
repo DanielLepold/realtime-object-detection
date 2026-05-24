@@ -59,10 +59,12 @@ class PerspectiveTransformer:
             p = np.array([[[float(point[0]), float(point[1])]]], dtype=np.float32)
             return cv2.perspectiveTransform(p, self._H)[0][0]
 
-        scale = np.array([
-            self.config.real_width_m / self._frame_w,
-            self.config.real_length_m / self._frame_h,
-        ])
+        scale = np.array(
+            [
+                self.config.real_width_m / self._frame_w,
+                self.config.real_length_m / self._frame_h,
+            ]
+        )
         return point.astype(float) * scale
 
     def meters_to_minimap_pixel(

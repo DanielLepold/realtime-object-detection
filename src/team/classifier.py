@@ -56,7 +56,7 @@ class TeamClassifier:
     def fit(self, frames: list[np.ndarray], boxes_per_frame: list[np.ndarray]) -> None:
         samples: list[np.ndarray] = []
 
-        for frame, boxes in zip(frames, boxes_per_frame):
+        for frame, boxes in zip(frames, boxes_per_frame, strict=False):
             for box in boxes:
                 color = self._jersey_color(frame, box)
                 if color is not None:
