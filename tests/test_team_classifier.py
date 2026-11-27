@@ -14,10 +14,10 @@ def _box(size: int = 100) -> np.ndarray:
 
 
 class TestTeamClassifier:
-    def test_not_fitted_returns_zero(self):
+    def test_not_fitted_returns_none(self):
         clf = TeamClassifier(TeamClassifierConfig())
         frame = _make_frame((255, 0, 0))
-        assert clf.predict(frame, _box()) == 0
+        assert clf.predict(frame, _box()) is None
         assert not clf.is_fitted
 
     def test_fit_two_distinct_colors(self):

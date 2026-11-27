@@ -57,8 +57,14 @@ field:
 To find the pixel coordinates, open the video in any image viewer that
 shows cursor position, pause on a clear frame, and click each pitch corner.
 
-If `corners` is left as `null`, the pipeline still runs but speed/distance
-values will be approximate (linear pixel-to-metre scale).
+If `corners` is left as `null`, the pipeline still runs: speed/distance use
+the players' bounding-box height (≈ `metrics.player_height_m`) as the
+pixel-to-metre scale, which gives realistic values, and the minimap shows
+only approximate positions.
+
+Orientation: the first edge (top-left → top-right) is mapped to the pitch
+**length** (`real_length_m`), matching a broadcast camera where the
+touchline runs horizontally across the image.
 
 ---
 

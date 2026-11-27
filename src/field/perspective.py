@@ -35,11 +35,19 @@ class PerspectiveTransformer:
     four points onto a top-down rectangle whose size matches the real
     pitch dimensions.
 
+    Orientation
+    -----------
+    Real-world coordinates are (x along the pitch length, y along the
+    width), matching a standard broadcast camera where the touchline runs
+    horizontally across the image.  The minimap uses the same landscape
+    orientation.
+
     Fallback
     --------
-    When corners are not set (config.corners = null), pixel-to-meter
-    conversion falls back to a simple linear scale so the pipeline still
-    produces approximate speed values without manual calibration.
+    When corners are not set (config.corners = null), pixel_to_meters
+    falls back to stretching the frame over the pitch.  This is only used
+    to place dots on the minimap; speed/distance switch to a player-height
+    based scale instead (see SpeedDistanceTracker).
     """
 
     def __init__(self, config: FieldConfig, frame_size: tuple[int, int]) -> None:
@@ -49,9 +57,18 @@ class PerspectiveTransformer:
 
         if config.corners:
             src = np.array(config.corners, dtype=np.float32)
-            w, h = config.real_width_m, config.real_length_m
-            dst = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
+            length, width = config.real_length_m, config.real_width_m
+            dst = np.array([[0, 0], [length, 0], [length, width], [0, width]], dtype=np.float32)
             self._H, _ = cv2.findHomography(src, dst)
+
+    @property
+    def has_homography(self) -> bool:
+        return self._H is not None
+
+    @property
+    def minimap_aspect(self) -> float:
+        """Minimap height / width ratio (landscape pitch)."""
+        return self.config.real_width_m / self.config.real_length_m
 
     def pixel_to_meters(self, point: np.ndarray) -> np.ndarray:
         """Convert a single (x, y) pixel coordinate to (x_m, y_m) meters."""
@@ -61,8 +78,8 @@ class PerspectiveTransformer:
 
         scale = np.array(
             [
-                self.config.real_width_m / self._frame_w,
-                self.config.real_length_m / self._frame_h,
+                self.config.real_length_m / self._frame_w,
+                self.config.real_width_m / self._frame_h,
             ]
         )
         return point.astype(float) * scale
@@ -72,6 +89,6 @@ class PerspectiveTransformer:
     ) -> np.ndarray:
         """Convert real-world meters to pixel coordinates inside the minimap canvas."""
         mw, mh = minimap_wh
-        x = int(np.clip(point_m[0] / self.config.real_width_m * mw, 0, mw - 1))
-        y = int(np.clip(point_m[1] / self.config.real_length_m * mh, 0, mh - 1))
+        x = int(np.clip(point_m[0] / self.config.real_length_m * mw, 0, mw - 1))
+        y = int(np.clip(point_m[1] / self.config.real_width_m * mh, 0, mh - 1))
         return np.array([x, y])

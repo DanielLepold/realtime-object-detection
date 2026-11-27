@@ -150,6 +150,10 @@ After training, download `best.pt` from Google Drive and place it at:
 realtime-object-detection/runs/football/weights/best.pt
 ```
 
+> The repository already ships a trained `best.pt` at this path.  The
+> `runs/` folder is gitignored, so after retraining add the new weights
+> explicitly: `git add -f runs/football/weights/best.pt`.
+
 ---
 
 ### Option B — Local training (requires a GPU or significant patience on CPU)

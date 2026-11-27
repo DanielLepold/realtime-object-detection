@@ -138,7 +138,7 @@ def main() -> None:
 
     model = YOLO(args.base)
 
-    _results = model.train(
+    model.train(
         data=data_yaml,
         epochs=args.epochs,
         imgsz=args.imgsz,
@@ -147,8 +147,9 @@ def main() -> None:
         project=args.project,
         name=args.name,
         resume=args.resume,
-        # Freeze the backbone for the first few epochs so pretrained
-        # features are preserved while the head adapts to football classes.
+        # Freeze the first 10 layers (the backbone) for the whole run so the
+        # pretrained features are preserved while the head adapts to the
+        # football classes – also makes training faster on small datasets.
         freeze=10,
         # Augmentation – conservative to avoid degrading pitch-specific patterns
         hsv_h=0.015,
@@ -159,8 +160,9 @@ def main() -> None:
         mixup=0.1,
     )
 
-    best = Path(args.project) / args.name / "weights" / "best.pt"
-    # weights end up at runs/football/weights/best.pt
+    # Newer Ultralytics versions nest relative projects under runs/detect/,
+    # so ask the trainer where it actually saved instead of guessing.
+    best = Path(model.trainer.save_dir) / "weights" / "best.pt"
     logger.success(f"Training complete. Best weights: {best}")
     logger.info(
         f"Update config.yaml → model.weights: {best}\n"

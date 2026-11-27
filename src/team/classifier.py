@@ -11,12 +11,14 @@ from sklearn.cluster import KMeans
 class TeamClassifierConfig:
     kmeans_clusters: int = 2
     color_space: str = "LAB"  # LAB | HSV
+    lightness_weight: float = 0.5  # LAB only: down-weights L so shadows matter less
 
     @classmethod
     def from_dict(cls, d: dict) -> TeamClassifierConfig:
         return cls(
             kmeans_clusters=d.get("kmeans_clusters", 2),
             color_space=d.get("color_space", "LAB"),
+            lightness_weight=d.get("lightness_weight", 0.5),
         )
 
 
@@ -31,18 +33,30 @@ class TeamClassifier:
     difference than in RGB.  This makes KMeans cluster centers more
     meaningful and reduces misclassification for similar-looking kits.
 
+    LAB also separates lightness (L) from color (a, b).  The same jersey in
+    sunlight and in shadow differs mostly in L, so L is multiplied by
+    `lightness_weight` (default 0.5) before clustering.  Without this, KMeans
+    tends to split "lit vs shadowed" players instead of "team A vs team B".
+
     Process
     -------
     fit()     – Called once on a batch of early frames.
                 For each player crop it:
-                  1. Takes the upper 60 % of the bounding box (jersey area).
-                  2. Masks out green pixels (field grass) in HSV space.
-                  3. Computes the dominant LAB color of the remaining pixels.
+                  1. Takes the torso region of the bounding box (15–50 % of
+                     the height, central 50 % of the width) – this avoids
+                     the head, shorts, legs and most of the background.
+                  2. Takes the per-channel median of the crop's pixels as the
+                     jersey color (robust to the few remaining grass /
+                     background pixels).  A fixed HSV "grass" mask is not
+                     used on purpose: it also erases green and lime kits.
                 Then fits KMeans(k=2) over all collected samples to discover
                 the two jersey cluster centers.
 
-    predict() – For a single player box, extracts its dominant jersey color
-                and returns the index of the nearest KMeans cluster (0 or 1).
+    predict() – For a single player box, extracts its jersey color and
+                returns the index of the nearest KMeans cluster (0 or 1),
+                or None if no usable jersey pixels were found.  The pipeline
+                accumulates these per-frame predictions as votes per track,
+                so one occluded or blurred frame cannot flip a team.
     """
 
     def __init__(self, config: TeamClassifierConfig) -> None:
@@ -73,12 +87,12 @@ class TeamClassifier:
         km.fit(np.array(samples))
         self._kmeans = km
 
-    def predict(self, frame: np.ndarray, box: np.ndarray) -> int:
+    def predict(self, frame: np.ndarray, box: np.ndarray) -> int | None:
         if self._kmeans is None:
-            return 0
+            return None
         color = self._jersey_color(frame, box)
         if color is None:
-            return 0
+            return None
         return int(self._kmeans.predict(color.reshape(1, -1))[0])
 
     @property
@@ -106,20 +120,26 @@ class TeamClassifier:
         x2 = min(frame.shape[1], x2)
         y2 = min(frame.shape[0], y2)
 
-        h = y2 - y1
-        crop = frame[y1 : y1 + max(1, int(h * 0.6)), x1:x2]
+        h, w = y2 - y1, x2 - x1
+        if h <= 0 or w <= 0:
+            return None
+        crop = frame[
+            y1 + int(h * 0.15) : y1 + max(1, int(h * 0.5)),
+            x1 + int(w * 0.25) : x1 + max(1, int(w * 0.75)),
+        ]
         if crop.size == 0:
             return None
 
-        converted = self._to_color_space(crop).reshape(-1, 3).astype(np.float32)
-        non_green = self._non_green_mask(crop).ravel().astype(bool)
-        filtered = converted[non_green]
-        if len(filtered) < 10:
+        pixels = self._to_color_space(crop).reshape(-1, 3)
+        if len(pixels) < 10:
             return None
+        return np.median(pixels, axis=0).astype(np.float64) * self._channel_weights
 
-        km = KMeans(n_clusters=1, n_init=1, random_state=0)
-        km.fit(filtered)
-        return km.cluster_centers_[0]
+    @property
+    def _channel_weights(self) -> np.ndarray:
+        if self.config.color_space == "LAB":
+            return np.array([self.config.lightness_weight, 1.0, 1.0])
+        return np.ones(3)
 
     def _to_color_space(self, bgr: np.ndarray) -> np.ndarray:
         if self.config.color_space == "LAB":
@@ -127,14 +147,9 @@ class TeamClassifier:
         return cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
 
     def _center_to_bgr(self, center: np.ndarray) -> np.ndarray:
-        if self.config.color_space == "LAB":
-            pixel = np.array([[[center[0], center[1], center[2]]]], dtype=np.float32)
-            return (cv2.cvtColor(pixel, cv2.COLOR_LAB2BGR)[0][0] * 255).clip(0, 255)
-        pixel = np.array([[[center[0], center[1], center[2]]]], dtype=np.uint8)
-        return cv2.cvtColor(pixel, cv2.COLOR_HSV2BGR)[0][0].astype(float)
-
-    @staticmethod
-    def _non_green_mask(bgr: np.ndarray) -> np.ndarray:
-        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        green_mask = cv2.inRange(hsv, np.array([35, 40, 40]), np.array([85, 255, 255]))
-        return (green_mask == 0).astype(np.uint8)
+        # Centers live in OpenCV's 8-bit color scales (they were computed
+        # from uint8 images), so convert back through uint8 as well.
+        weights = np.where(self._channel_weights > 0, self._channel_weights, 1.0)
+        pixel = np.clip(center / weights, 0, 255).astype(np.uint8).reshape(1, 1, 3)
+        code = cv2.COLOR_LAB2BGR if self.config.color_space == "LAB" else cv2.COLOR_HSV2BGR
+        return cv2.cvtColor(pixel, code)[0][0].astype(float)

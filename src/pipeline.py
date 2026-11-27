@@ -47,7 +47,7 @@ class AnalysisPipeline:
     Frame flow
     ----------
     read frame
-      → track (YOLO + ByteTrack)  →  players, ball
+      → detect (YOLO) + track     →  players (with IDs), ball
       → stabilize (optical flow)  →  cumulative camera offset
       → classify teams (KMeans)   →  team_id per tracker_id
       → measure speed / distance  →  metrics per tracker_id
@@ -60,7 +60,17 @@ class AnalysisPipeline:
     buffered.  Once the buffer is full, KMeans is fitted once on the
     batch.  All subsequent frames use the fitted cluster centers so team
     IDs stay consistent for the entire video.
+
+    Every frame, each visible player gets one team "vote" from the fitted
+    classifier; the displayed team is the majority of that track's recent
+    votes.  Players whose box overlaps another player's box do not vote
+    (their crop would contain someone else's jersey), and old votes decay
+    slowly, so a tracker ID switch between two players of different teams
+    corrects itself within about a second.
     """
+
+    _VOTE_DECAY = 0.95
+    _MAX_OVERLAP = 0.1  # fraction of a box covered by another player's box
 
     def __init__(self, config: PipelineConfig) -> None:
         self._config = config
@@ -69,6 +79,8 @@ class AnalysisPipeline:
         self._team_clf = TeamClassifier(config.team)
         self._annotator = FrameAnnotator(config.visualizer)
         self._team_ids: dict[int, int] = {}
+        self._team_votes: dict[int, np.ndarray] = {}
+        self._frame_idx = 0
         self._transformer: PerspectiveTransformer | None = None
         self._speed_tracker: SpeedDistanceTracker | None = None
         self._fit_buffer: list[tuple[np.ndarray, np.ndarray]] = []
@@ -87,8 +99,17 @@ class AnalysisPipeline:
         self._config.metrics.fps = fps
         self._speed_tracker = SpeedDistanceTracker(self._config.metrics, self._transformer)
 
-        fourcc = cv2.VideoWriter_fourcc(*self._config.video_codec)
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+        writer = cv2.VideoWriter(
+            output_path, cv2.VideoWriter_fourcc(*self._config.video_codec), fps, (w, h)
+        )
+        if not writer.isOpened() and self._config.video_codec != "mp4v":
+            logger.warning(
+                f"Codec '{self._config.video_codec}' not available, falling back to 'mp4v'"
+            )
+            writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+        if not writer.isOpened():
+            cap.release()
+            raise RuntimeError(f"Cannot open video writer for: {output_path}")
 
         logger.info(f"Input : {input_path}  ({w}×{h} @ {fps:.1f} fps, {total} frames)")
         logger.info(f"Output: {output_path}")
@@ -101,6 +122,7 @@ class AnalysisPipeline:
             if not ok:
                 break
 
+            self._frame_idx = frame_idx
             annotated = self._process_frame(frame)
             writer.write(annotated)
             frame_idx += 1
@@ -129,15 +151,8 @@ class AnalysisPipeline:
 
         metrics: dict[int, tuple[float, float]] = {}
         if len(result.players) > 0 and result.players.tracker_id is not None:
-            bottom_centers = np.stack(
-                [
-                    (result.players.xyxy[:, 0] + result.players.xyxy[:, 2]) / 2.0,
-                    result.players.xyxy[:, 3],
-                ],
-                axis=1,
-            )
             metrics = self._speed_tracker.update(
-                result.players.tracker_id, bottom_centers, camera_offset
+                result.players.tracker_id, result.players.xyxy, camera_offset, self._frame_idx
             )
 
         annotated = self._annotator.annotate(
@@ -164,8 +179,9 @@ class AnalysisPipeline:
     def _maybe_fit_team_classifier(self, frame: np.ndarray, players) -> None:
         if self._team_clf.is_fitted:
             return
-        if len(players) > 0:
-            self._fit_buffer.append((frame.copy(), players.xyxy.copy()))
+        isolated = players.xyxy[self._isolated_mask(players.xyxy)]
+        if len(isolated) > 0:
+            self._fit_buffer.append((frame.copy(), isolated.copy()))
         if len(self._fit_buffer) >= self._config.fit_frames:
             logger.info("Fitting team classifier…")
             frames, boxes = zip(*self._fit_buffer, strict=False)
@@ -176,7 +192,32 @@ class AnalysisPipeline:
     def _update_team_ids(self, frame: np.ndarray, players) -> None:
         if not self._team_clf.is_fitted or players.tracker_id is None:
             return
-        for tid, box in zip(players.tracker_id, players.xyxy, strict=False):
+        n_teams = self._config.team.kmeans_clusters
+        isolated = self._isolated_mask(players.xyxy)
+        for tid, box, ok in zip(players.tracker_id, players.xyxy, isolated, strict=True):
+            if not ok:
+                continue
+            team = self._team_clf.predict(frame, box)
+            if team is None:
+                continue
             tid_int = int(tid)
-            if tid_int not in self._team_ids:
-                self._team_ids[tid_int] = self._team_clf.predict(frame, box)
+            votes = self._team_votes.setdefault(tid_int, np.zeros(n_teams))
+            votes *= self._VOTE_DECAY
+            votes[team] += 1.0
+            self._team_ids[tid_int] = int(np.argmax(votes))
+
+    @classmethod
+    def _isolated_mask(cls, xyxy: np.ndarray) -> np.ndarray:
+        """True for boxes not significantly covered by any other box."""
+        n = len(xyxy)
+        if n < 2:
+            return np.ones(n, dtype=bool)
+        x1 = np.maximum(xyxy[:, None, 0], xyxy[None, :, 0])
+        y1 = np.maximum(xyxy[:, None, 1], xyxy[None, :, 1])
+        x2 = np.minimum(xyxy[:, None, 2], xyxy[None, :, 2])
+        y2 = np.minimum(xyxy[:, None, 3], xyxy[None, :, 3])
+        inter = np.clip(x2 - x1, 0, None) * np.clip(y2 - y1, 0, None)
+        np.fill_diagonal(inter, 0)
+        area = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
+        covered = inter.max(axis=1) / np.maximum(area, 1e-6)
+        return covered <= cls._MAX_OVERLAP
