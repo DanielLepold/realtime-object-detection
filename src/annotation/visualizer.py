@@ -9,7 +9,7 @@ import supervision as sv
 # Default team palette – overridden at runtime by discovered jersey colors.
 _TEAM_COLORS = [
     sv.Color(r=230, g=57, b=70),  # team 0 – red
-    sv.Color(r=69, g=123, b=157),  # team 1 – blue
+    sv.Color(r=30, g=110, b=255),  # team 1 – blue (bright enough to stand out on grass)
     sv.Color(r=244, g=211, b=94),  # unknown / referee – yellow
 ]
 _UNKNOWN = len(_TEAM_COLORS) - 1
@@ -123,14 +123,17 @@ class FrameAnnotator:
                 mm_pt = transformer.meters_to_minimap_pixel(pos_m, (mw, mh))
                 team = team_ids.get(int(tid), _UNKNOWN)
                 color = _TEAM_COLORS[min(team, _UNKNOWN)]
-                cv2.circle(minimap, tuple(mm_pt.tolist()), 5, color.as_bgr(), -1)
+                center = tuple(mm_pt.tolist())
+                cv2.circle(minimap, center, 6, (255, 255, 255), -1)  # white outline
+                cv2.circle(minimap, center, 5, color.as_bgr(), -1)
 
         if len(ball) > 0:
             bx1, by1, bx2, by2 = ball.xyxy[0]
             bx, by = (bx1 + bx2) / 2.0, float(by2)
             bpos_m = transformer.pixel_to_meters(np.array([bx, by]) - camera_offset)
             bmm = transformer.meters_to_minimap_pixel(bpos_m, (mw, mh))
-            cv2.circle(minimap, tuple(bmm.tolist()), 6, (255, 255, 255), -1)
+            cv2.circle(minimap, tuple(bmm.tolist()), 6, (0, 0, 0), -1)  # dark outline
+            cv2.circle(minimap, tuple(bmm.tolist()), 5, (255, 255, 255), -1)
 
         frame[pad : pad + mh, fw - mw - pad : fw - pad] = minimap
         return frame
