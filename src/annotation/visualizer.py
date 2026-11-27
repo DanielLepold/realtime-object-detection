@@ -9,9 +9,11 @@ import supervision as sv
 # Default team palette – overridden at runtime by discovered jersey colors.
 _TEAM_COLORS = [
     sv.Color(r=230, g=57, b=70),  # team 0 – red
-    sv.Color(r=69, g=123, b=157),  # team 1 – blue
+    sv.Color(r=30, g=110, b=255),  # team 1 – blue (bright enough to stand out on grass)
     sv.Color(r=244, g=211, b=94),  # unknown / referee – yellow
 ]
+_UNKNOWN = len(_TEAM_COLORS) - 1
+_PALETTE = sv.ColorPalette(colors=_TEAM_COLORS)
 
 
 @dataclass
@@ -50,9 +52,12 @@ class FrameAnnotator:
 
     def __init__(self, config: VisualizerConfig) -> None:
         self.config = config
-        self._trace = sv.TraceAnnotator(
-            thickness=2, trace_length=30, color_lookup=sv.ColorLookup.INDEX
-        )
+        # All player annotators share one fixed palette; the per-detection
+        # team index is passed as `custom_color_lookup`, so ellipse, trail
+        # and label of a player always have that player's team color.
+        self._ellipse = sv.EllipseAnnotator(color=_PALETTE)
+        self._trace = sv.TraceAnnotator(color=_PALETTE, thickness=2, trace_length=30)
+        self._label = sv.LabelAnnotator(color=_PALETTE, text_scale=0.4, text_thickness=1)
         self._triangle = sv.TriangleAnnotator(color=sv.Color.WHITE, base=20, height=16)
 
     # ------------------------------------------------------------------
@@ -70,30 +75,16 @@ class FrameAnnotator:
     ) -> np.ndarray:
         out = frame.copy()
 
-        if len(players) > 0:
-            colors = self._player_colors(players, team_ids)
-            palette = sv.ColorPalette(colors=colors)
-
-            out = sv.EllipseAnnotator(color=palette, color_lookup=sv.ColorLookup.INDEX).annotate(
-                out, players
-            )
-
-            out = self._trace.annotate(out, players)
-
-            if players.tracker_id is not None:
-                labels = self._build_labels(players, metrics)
-                out = sv.LabelAnnotator(
-                    text_scale=0.4,
-                    text_thickness=1,
-                    color=palette,
-                    color_lookup=sv.ColorLookup.INDEX,
-                ).annotate(out, players, labels=labels)
+        if len(players) > 0 and players.tracker_id is not None:
+            lookup = self._team_lookup(players, team_ids)
+            out = self._ellipse.annotate(out, players, custom_color_lookup=lookup)
+            out = self._trace.annotate(out, players, custom_color_lookup=lookup)
+            labels = self._build_labels(players, metrics)
+            out = self._label.annotate(out, players, labels=labels, custom_color_lookup=lookup)
 
         if len(referees) > 0:
-            referee_palette = sv.ColorPalette(colors=[_TEAM_COLORS[2]] * len(referees))
-            out = sv.EllipseAnnotator(
-                color=referee_palette, color_lookup=sv.ColorLookup.INDEX
-            ).annotate(out, referees)
+            lookup = np.full(len(referees), _UNKNOWN, dtype=int)
+            out = self._ellipse.annotate(out, referees, custom_color_lookup=lookup)
 
         if len(ball) > 0:
             out = self._triangle.annotate(out, ball)
@@ -114,8 +105,12 @@ class FrameAnnotator:
         camera_offset: np.ndarray,
     ) -> np.ndarray:
         fh, fw = frame.shape[:2]
-        mw = int(fw * 0.22)
-        mh = int(mw * 105 / 68)
+        pad = 10
+        mw = int(fw * transformer.config.minimap_scale)
+        mh = int(mw * transformer.minimap_aspect)
+        if mh > fh - 2 * pad:  # keep the minimap inside the frame
+            mh = fh - 2 * pad
+            mw = int(mh / transformer.minimap_aspect)
 
         minimap = np.zeros((mh, mw, 3), dtype=np.uint8)
         self._draw_pitch_lines(minimap)
@@ -126,18 +121,20 @@ class FrameAnnotator:
                 cy = float(xyxy[3])
                 pos_m = transformer.pixel_to_meters(np.array([cx, cy]) - camera_offset)
                 mm_pt = transformer.meters_to_minimap_pixel(pos_m, (mw, mh))
-                team = team_ids.get(int(tid), 2)
-                color = _TEAM_COLORS[min(team, len(_TEAM_COLORS) - 1)]
-                cv2.circle(minimap, tuple(mm_pt.tolist()), 5, color.as_bgr(), -1)
+                team = team_ids.get(int(tid), _UNKNOWN)
+                color = _TEAM_COLORS[min(team, _UNKNOWN)]
+                center = tuple(mm_pt.tolist())
+                cv2.circle(minimap, center, 6, (255, 255, 255), -1)  # white outline
+                cv2.circle(minimap, center, 5, color.as_bgr(), -1)
 
         if len(ball) > 0:
             bx1, by1, bx2, by2 = ball.xyxy[0]
             bx, by = (bx1 + bx2) / 2.0, float(by2)
             bpos_m = transformer.pixel_to_meters(np.array([bx, by]) - camera_offset)
             bmm = transformer.meters_to_minimap_pixel(bpos_m, (mw, mh))
-            cv2.circle(minimap, tuple(bmm.tolist()), 6, (255, 255, 255), -1)
+            cv2.circle(minimap, tuple(bmm.tolist()), 6, (0, 0, 0), -1)  # dark outline
+            cv2.circle(minimap, tuple(bmm.tolist()), 5, (255, 255, 255), -1)
 
-        pad = 10
         frame[pad : pad + mh, fw - mw - pad : fw - pad] = minimap
         return frame
 
@@ -145,13 +142,13 @@ class FrameAnnotator:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _player_colors(self, players: sv.Detections, team_ids: dict[int, int]) -> list[sv.Color]:
-        colors: list[sv.Color] = []
-        ids = players.tracker_id if players.tracker_id is not None else [None] * len(players)
-        for tid in ids:
-            team = team_ids.get(int(tid), 2) if tid is not None else 2
-            colors.append(_TEAM_COLORS[min(team, len(_TEAM_COLORS) - 1)])
-        return colors
+    @staticmethod
+    def _team_lookup(players: sv.Detections, team_ids: dict[int, int]) -> np.ndarray:
+        """Palette index per detection: its team, or the 'unknown' color."""
+        return np.array(
+            [min(team_ids.get(int(tid), _UNKNOWN), _UNKNOWN) for tid in players.tracker_id],
+            dtype=int,
+        )
 
     def _build_labels(
         self,
@@ -176,6 +173,6 @@ class FrameAnnotator:
         h, w = minimap.shape[:2]
         cv2.rectangle(minimap, (0, 0), (w - 1, h - 1), (34, 139, 34), -1)  # green fill
         cv2.rectangle(minimap, (2, 2), (w - 3, h - 3), (255, 255, 255), 1)  # boundary
-        mid = h // 2
-        cv2.line(minimap, (0, mid), (w, mid), (255, 255, 255), 1)  # halfway line
-        cv2.circle(minimap, (w // 2, mid), h // 10, (255, 255, 255), 1)  # centre circle
+        mid = w // 2
+        cv2.line(minimap, (mid, 0), (mid, h), (255, 255, 255), 1)  # halfway line
+        cv2.circle(minimap, (mid, h // 2), h // 7, (255, 255, 255), 1)  # centre circle

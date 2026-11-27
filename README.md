@@ -7,10 +7,12 @@ football video.
 
 ---
 
-![Analysis result](assets/example_result.png)
+![Analysis result](assets/example_result.gif)
 
-*Player detection with team classification, per-player speed (km/h) and
-distance covered (m), motion trails, and bird's-eye minimap.*
+*Output of `python main.py` on a broadcast clip (6 s excerpt): player
+detection and tracking with stable IDs, team classification by jersey
+color (red / blue), per-player speed (km/h) and distance covered (m),
+motion trails, ball marker (white triangle) and bird's-eye minimap.*
 
 ---
 
@@ -19,11 +21,11 @@ distance covered (m), motion trails, and bird's-eye minimap.*
 | Feature | Method |
 |---------|--------|
 | Player & ball detection | YOLOv8 fine-tuned on football dataset |
-| Multi-object tracking | ByteTrack (built into YOLO) |
-| Team classification | KMeans on CIELAB jersey color |
+| Multi-object tracking | ByteTrack / BoT-SORT (Ultralytics) for players; ball detected per frame |
+| Team classification | KMeans on CIELAB torso color + per-track majority vote |
 | Camera movement | Shi-Tomasi corners + Lucas-Kanade optical flow |
 | Coordinate transform | Homography (pixel → real-world metres) |
-| Speed & distance | Rolling-average with camera-movement correction |
+| Speed & distance | Smoothed net displacement, camera-movement correction, player-height scale |
 | Visualization | supervision library (ellipses, trails, labels, minimap) |
 
 ---
@@ -33,7 +35,7 @@ distance covered (m), motion trails, and bird's-eye minimap.*
 ```
 realtime-object-detection/
 ├── assets/
-│   ├── example_result.png  # Sample output frame
+│   ├── example_result.gif  # Sample output (6 s animated excerpt)
 │   └── videos/             # Input videos (gitignored – see GDPR notice)
 ├── docs/
 │   ├── architecture.md     # System design and data-flow diagram
@@ -78,10 +80,19 @@ pip install -r requirements.txt
 
 # 3. Run the pipeline
 python main.py --input assets/videos/sample_match.mp4
+
+# 4. (optional) Run the tests
+pip install pytest
+python -m pytest
 ```
 
 The annotated video is written next to the input file as
 `sample_match_analysed.mp4`.
+
+The fine-tuned model (`runs/football/weights/best.pt`, YOLOv8s, ~21 MB) is
+included in the repository, so no training is needed to run the pipeline.
+Input videos are **not** included (see the GDPR notice below) – use any
+broadcast-style football clip.
 
 For full configuration options see [docs/usage.md](docs/usage.md).
 
@@ -99,11 +110,11 @@ PlayerTracker          detects players and ball, assigns stable IDs
 CameraStabilizer       measures how much the camera has panned this frame
     │
     ▼
-TeamClassifier         assigns each new player ID to team 0 or 1
+TeamClassifier         votes team 0 or 1 for each visible player ID
     │
     ▼
 SpeedDistanceTracker   corrects positions for camera movement, converts to
-                       metres, computes rolling speed and total distance
+                       metres, computes smoothed speed and total distance
     │
     ▼
 FrameAnnotator         draws ellipses, trails, labels, and minimap
@@ -123,6 +134,9 @@ Fine-tuning guide: [docs/training.md](docs/training.md)
 The default COCO-pretrained weights detect a generic "person" class.
 The fine-tuned model distinguishes **ball**, **goalkeeper**, **player**,
 and **referee**, and ignores spectators outside the pitch.
+
+The trained weights are already committed at `runs/football/weights/best.pt`;
+retraining is only needed to reproduce or improve them.
 
 Training runs on a free T4 GPU in Google Colab in ~20 minutes using the
 provided notebook (`notebooks/football_training_colab.ipynb`).

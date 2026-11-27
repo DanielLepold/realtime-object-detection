@@ -20,6 +20,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["N802", "N803"]  # allow non-lowercase names in tests
+"notebooks/*" = ["E402"]       # notebook cells import where they are used
 
 [tool.ruff.format]
 quote-style = "double"

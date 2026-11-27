@@ -1,6 +1,7 @@
 model:
   weights: runs/football/weights/best.pt
-  conf_threshold: 0.3
+  conf_threshold: 0.3          # players / referees
+  ball_conf_threshold: 0.15    # the ball is small and blurry → lower threshold
   iou_threshold: 0.5
   tracker: bytetrack           # bytetrack | botsort
   device: ""                   # "" = auto (cuda → mps → cpu)
@@ -30,10 +31,13 @@ field:
 team:
   kmeans_clusters: 2
   color_space: LAB             # LAB | HSV  (LAB is more perceptually uniform)
+  lightness_weight: 0.5        # LAB only: weight of L vs a/b (lower = less shadow-sensitive)
 
 metrics:
-  speed_smoothing_window: 5    # rolling-average window in frames
-  distance_smoothing_window: 3
+  speed_smoothing_window: 5    # speed = net displacement over this many frames
+  distance_smoothing_window: 3 # rolling mean of positions before measuring displacement
+  max_speed_kmh: 40.0          # faster speeds are treated as tracking glitches
+  player_height_m: 1.8         # used for the pixel→metre scale when corners are null
 
 fit_frames: 30                 # frames collected before fitting the team classifier
 
