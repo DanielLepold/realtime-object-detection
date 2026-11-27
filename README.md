@@ -7,10 +7,12 @@ football video.
 
 ---
 
-![Analysis result](assets/example_result.png)
+![Analysis result](assets/example_result.gif)
 
-*Player detection with team classification, per-player speed (km/h) and
-distance covered (m), motion trails, and bird's-eye minimap.*
+*Output of `python main.py` on a broadcast clip (6 s excerpt): player
+detection and tracking with stable IDs, team classification by jersey
+color (red / blue), per-player speed (km/h) and distance covered (m),
+motion trails, ball marker (white triangle) and bird's-eye minimap.*
 
 ---
 
@@ -33,7 +35,7 @@ distance covered (m), motion trails, and bird's-eye minimap.*
 ```
 realtime-object-detection/
 ├── assets/
-│   ├── example_result.png  # Sample output frame
+│   ├── example_result.gif  # Sample output (6 s animated excerpt)
 │   └── videos/             # Input videos (gitignored – see GDPR notice)
 ├── docs/
 │   ├── architecture.md     # System design and data-flow diagram
